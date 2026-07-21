@@ -1,7 +1,8 @@
 import axios from 'axios';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { Request, Response, Router } from 'express';
 import https from 'https';
+import { isIP } from 'net';
 import os from 'os';
 
 export const healthRoute = Router();
@@ -10,15 +11,30 @@ const httpsAgent = new https.Agent({
     rejectUnauthorized: false,
 });
 
+const isValidHostname = (hostname: string): boolean => {
+    if (hostname.length === 0 || hostname.length > 253) {
+        return false;
+    }
+
+    if (isIP(hostname) !== 0) {
+        return true;
+    }
+
+    return hostname.split('.').every((label) => (
+        /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/.test(label)
+    ));
+};
+
 // Helper function to ping a hostname
 const pingHost = (hostname: string): Promise<boolean> => {
     return new Promise((resolve) => {
-        exec(`ping -c 1 -W 1 ${hostname}`, (error) => {
-            if (error) {
-                resolve(false);
-            } else {
-                resolve(true);
-            }
+        if (!isValidHostname(hostname)) {
+            resolve(false);
+            return;
+        }
+
+        execFile('ping', ['-c', '1', '-W', '1', hostname], (error) => {
+            resolve(!error);
         });
     });
 };
